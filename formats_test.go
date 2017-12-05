@@ -58,10 +58,16 @@ func callMultiple(wg *sync.WaitGroup, times int, t *testing.T, s *SuiteSetup, fn
 			if err != nil {
 				t.Errorf("Got unexpected error: %v", err)
 			}
-			if response.StatusCode != 200 {
-				t.Log(output.String())
-				t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
-					200, response.StatusCode)
+			if response.StatusCode != http.StatusOK {
+				if response.StatusCode == http.StatusNotImplemented {
+					// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
+					t.Logf("It seems like given FDK does not support '%v' format. "+
+						"That's not a reason to fail, continue testing...", fnFormat)
+				} else {
+					t.Log(output.String())
+					t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
+						200, response.StatusCode)
+				}
 			}
 		}()
 	}
@@ -125,8 +131,14 @@ func TestFDKFormatSmallBody(t *testing.T) {
 			if !strings.Contains(output.String(), helloJohnExpectedOutput) {
 				t.Errorf("Output assertion error.\n\tExpected: %v\n\tActual: %v", helloJohnExpectedOutput, output.String())
 			}
-			if response.StatusCode != 200 {
-				t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v", 200, response.StatusCode)
+			if response.StatusCode != http.StatusOK {
+				if response.StatusCode == http.StatusNotImplemented {
+					// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
+					t.Logf("It seems like given FDK does not support '%v' format. "+
+						"That's not a reason to fail, continue testing...", format)
+				} else {
+					t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v", 200, response.StatusCode)
+				}
 			}
 
 			expectedHeaderNames := []string{"Content-Type", "Content-Length"}
