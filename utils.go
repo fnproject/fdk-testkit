@@ -127,7 +127,7 @@ func EnvAsHeader(req *http.Request, selectedEnv []string) {
 	}
 }
 
-func CallFN(u string, content io.Reader, output io.Writer, method string, env []string) (*http.Response, error) {
+func CallFN(u string, contentType string, content io.Reader, output io.Writer, method string, env []string) (*http.Response, error) {
 	if method == "" {
 		if content == nil {
 			method = "GET"
@@ -141,7 +141,7 @@ func CallFN(u string, content io.Reader, output io.Writer, method string, env []
 		return nil, fmt.Errorf("error running route: %s", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 
 	if len(env) > 0 {
 		EnvAsHeader(req, env)
@@ -175,9 +175,9 @@ func MyCaller() string {
 	return fmt.Sprintf("%s:%d", f, l)
 }
 
-func CallAsync(t *testing.T, u url.URL, content io.Reader) string {
+func CallAsync(t *testing.T, u url.URL, contentType string, content io.Reader) string {
 	output := &bytes.Buffer{}
-	_, err := CallFN(u.String(), content, output, "POST", []string{})
+	_, err := CallFN(u.String(), contentType, content, output, "POST", []string{})
 	if err != nil {
 		t.Errorf("Got unexpected error: %v", err)
 	}
