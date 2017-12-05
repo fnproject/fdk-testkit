@@ -105,50 +105,61 @@ func TestFDKFormatSmallBody(t *testing.T) {
 
 	helloJohnPayload := &struct {
 		Name string `json:"name"`
-	}{
-		Name: "Jimmy",
-	}
-	helloJohnExpectedOutput := "Hello Jimmy"
+	}{}
+	ExpectedOutput := "Hello %v"
 	for _, format := range formats {
 
 		// echo function:
 		// payload:
 		//    {
-		//        "name": "Jimmy"
+		//        "name": "%v"
 		//    }
 		// response:
-		//    "Hello Jimmy"
+		//    "Hello %v"
+		// if name is empty then:
+		//	  "Hello World"
 		t.Run(fmt.Sprintf("test-fdk-%v-small-body", format), func(t *testing.T) {
 
 			t.Parallel()
 			s := SetupDefaultSuite()
 			route := fmt.Sprintf("/test-fdk-%v-format-small-body", format)
 
-			output, response, err := callOnce(t, s, route, FDKImage, format, helloJohnPayload)
-			if err != nil {
-				t.Errorf("unexpected error: %v", err.Error())
-			}
-			if !strings.Contains(output.String(), helloJohnExpectedOutput) {
-				t.Errorf("Output assertion error.\n\tExpected: %v\n\tActual: %v", helloJohnExpectedOutput, output.String())
-			}
-			if response.StatusCode != http.StatusOK {
-				if response.StatusCode == http.StatusNotImplemented {
-					// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
-					t.Logf("It seems like given FDK does not support '%v' format. "+
-						"That's not a reason to fail, continue testing...", format)
-				} else {
-					t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v", 200, response.StatusCode)
-				}
-			}
+			for _, part := range []string{"", "Jimmy", RandStringBytes(10), RandStringBytes(20)} {
+				helloJohnPayload.Name = part
+				output, response, err := callOnce(t, s, route, FDKImage, format, helloJohnPayload)
 
-			expectedHeaderNames := []string{"Content-Type", "Content-Length"}
-			expectedHeaderValues := []string{"text/plain; charset=utf-8", strconv.Itoa(output.Len())}
-			for i, name := range expectedHeaderNames {
-				actual := response.Header.Get(name)
-				expected := expectedHeaderValues[i]
-				if !strings.Contains(expected, actual) {
-					t.Errorf("HTTP header assertion error for %v."+
-						"\n\tExpected: %v\n\tActual: %v", name, expected, actual)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err.Error())
+				}
+
+				expected := ""
+				if part == "" {
+					expected = fmt.Sprintf(ExpectedOutput, "World")
+				}
+
+				expected = fmt.Sprintf(ExpectedOutput, part)
+				if !strings.Contains(output.String(), expected) {
+					t.Errorf("Output assertion error.\n\tExpected: %v\n\tActual: %v", expected, output.String())
+				}
+				if response.StatusCode != http.StatusOK {
+					if response.StatusCode == http.StatusNotImplemented {
+						// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
+						t.Logf("It seems like given FDK does not support '%v' format. "+
+							"That's not a reason to fail, continue testing...", format)
+					} else {
+						t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v", 200, response.StatusCode)
+					}
+				}
+
+				expectedHeaderNames := []string{"Content-Type", "Content-Length"}
+				expectedHeaderValues := []string{"text/plain; charset=utf-8", strconv.Itoa(output.Len())}
+				for i, name := range expectedHeaderNames {
+					actual := response.Header.Get(name)
+					expected := expectedHeaderValues[i]
+					if !strings.Contains(expected, actual) {
+						t.Errorf("HTTP header assertion error for %v."+
+							"\n\tExpected: %v\n\tActual: %v", name, expected, actual)
+					}
 				}
 			}
 		})
