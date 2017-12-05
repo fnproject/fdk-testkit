@@ -89,17 +89,19 @@ func AssertRouteFields(t *testing.T, routeObject *models.Route, path, image, rou
 
 }
 
-func CreateRouteNoAssert(ctx context.Context, fnclient *client.Fn, appName, image, routePath, routeType, routeFormat string, routeConfig map[string]string, headers map[string][]string) (*routes.PostAppsAppRoutesOK, error) {
+func CreateRouteNoAssert(ctx context.Context, fnclient *client.Fn, appName, image, routePath, routeType, routeFormat string, timeout, idleTimeout int32, routeConfig map[string]string, headers map[string][]string) (*routes.PostAppsAppRoutesOK, error) {
 	cfg := &routes.PostAppsAppRoutesParams{
 		App: appName,
 		Body: &models.RouteWrapper{
 			Route: &models.Route{
-				Config:  routeConfig,
-				Headers: headers,
-				Image:   image,
-				Path:    routePath,
-				Type:    routeType,
-				Format:  routeFormat,
+				Config:      routeConfig,
+				Headers:     headers,
+				Image:       image,
+				Path:        routePath,
+				Type:        routeType,
+				Format:      routeFormat,
+				Timeout:     &timeout,
+				IDLETimeout: &idleTimeout,
 			},
 		},
 		Context: ctx,
@@ -119,8 +121,8 @@ func CreateRouteNoAssert(ctx context.Context, fnclient *client.Fn, appName, imag
 
 }
 
-func CreateRoute(t *testing.T, ctx context.Context, fnclient *client.Fn, appName, routePath, image, routeType, routeFormat string, routeConfig map[string]string, headers map[string][]string) {
-	routeResponse, err := CreateRouteNoAssert(ctx, fnclient, appName, image, routePath, routeType, routeFormat, routeConfig, headers)
+func CreateRoute(t *testing.T, ctx context.Context, fnclient *client.Fn, appName, routePath, image, routeType, routeFormat string, timeout, idleTimeout int32, routeConfig map[string]string, headers map[string][]string) {
+	routeResponse, err := CreateRouteNoAssert(ctx, fnclient, appName, image, routePath, routeType, routeFormat, timeout, idleTimeout, routeConfig, headers)
 	CheckRouteResponseError(t, err)
 
 	AssertRouteFields(t, routeResponse.Payload.Route, routePath, image, routeType, routeFormat)

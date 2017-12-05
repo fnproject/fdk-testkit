@@ -151,7 +151,6 @@ func CallFN(u string, contentType string, content io.Reader, output io.Writer, m
 	if err != nil {
 		return nil, fmt.Errorf("error running route: %s", err)
 	}
-	fmt.Println("call response status code: ", resp.Status)
 	io.Copy(output, resp.Body)
 
 	return resp, nil

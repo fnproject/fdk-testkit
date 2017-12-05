@@ -34,10 +34,13 @@ def handler(context, data=None, loop=None):
         except Exception:
             data = {}
 
-    name = data.get("name")
-    if not len(name):
-        name = "World"
-    return "Hello {}".format(name)
+    if isinstance(data, dict):
+        name = data.get("name")
+        if not len(name):
+            name = "World"
+        return "Hello {}".format(name)
+    if isinstance(data, str):
+        return data
 
 
 if __name__ == "__main__":

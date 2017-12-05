@@ -15,12 +15,7 @@ import (
 	"sync"
 )
 
-type JSONResponse struct {
-	Message string `json:"message"`
-}
-
-
-func doRequest(fnAppName, fnAppRoute string, contentType string, requestBody, responseBody interface{})  (*bytes.Buffer, *http.Response, error) {
+func doRequest(t *testing.T, fnAppName, fnAppRoute string, contentType string, requestBody interface{}) (*bytes.Buffer, *http.Response, error) {
 	u := url.URL{
 		Scheme: "http",
 		Host:   Host(),
@@ -39,58 +34,59 @@ func doRequest(fnAppName, fnAppRoute string, contentType string, requestBody, re
 	if err != nil {
 		return nil, response, err
 	}
-	err = json.Unmarshal(output.Bytes(), responseBody)
-	if err != nil {
-		return nil, response, err
-	}
 
 	return output, response, nil
 }
 
-func callMultiple(times int, t *testing.T, s *SuiteSetup, fnRoute, fnImage,
+func callMultiple(wg *sync.WaitGroup, times int, t *testing.T, s *SuiteSetup, fnRoute, fnImage,
 	fnFormat string) {
 
+	timeout := int32(30)
+	idleTimeout := int32(10)
 	CreateApp(t, s.Context, s.Client, s.AppName, map[string]string{})
 	CreateRoute(t, s.Context, s.Client, s.AppName, fnRoute, fnImage, "sync",
-		fnFormat, s.RouteConfig, s.RouteHeaders)
+		fnFormat, timeout, idleTimeout, s.RouteConfig, s.RouteHeaders)
 
-	var wg *sync.WaitGroup
 	wg.Add(times)
 
-	go func() {
-		defer wg.Done()
+	for i := 0; i < times; i++ {
+		go func() {
+			defer wg.Done()
 
-		requestBody := RandStringBytes(100)
-		responseBody := &JSONResponse{}
-		_, response, err := doRequest(s.AppName, fnRoute, "text/plain", requestBody, responseBody)
-		if err != nil {
-			t.Errorf("Got unexpected error: %v", err)
-		}
-		if response.StatusCode != 200 {
-			t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
-				200, response.StatusCode)
-		}
-	}()
-
+			requestBody := fmt.Sprintf(`{"name":"%v"}`, RandStringBytes(100))
+			output, response, err := doRequest(t, s.AppName, fnRoute, "text/plain", requestBody)
+			if err != nil {
+				t.Errorf("Got unexpected error: %v", err)
+			}
+			if response.StatusCode != 200 {
+				t.Log(output.String())
+				t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
+					200, response.StatusCode)
+			}
+		}()
+	}
 	wg.Wait()
+
 	DeleteApp(t, s.Context, s.Client, s.AppName)
 }
 
 func callOnce(t *testing.T, s *SuiteSetup, fnRoute, fnImage,
-	fnFormat string, requestBody interface{}, responseBody interface{}) (*bytes.Buffer, *http.Response) {
+	fnFormat string, requestBody interface{}) (*bytes.Buffer, *http.Response, error) {
 
+	timeout := int32(30)
+	idleTimeout := int32(10)
 	CreateApp(t, s.Context, s.Client, s.AppName, map[string]string{})
 	CreateRoute(t, s.Context, s.Client, s.AppName, fnRoute, fnImage, "sync",
-		fnFormat, s.RouteConfig, s.RouteHeaders)
+		fnFormat, timeout, idleTimeout, s.RouteConfig, s.RouteHeaders)
 
-	output, response, err := doRequest(s.AppName, fnRoute, "application/json", requestBody, responseBody)
+	output, response, err := doRequest(t, s.AppName, fnRoute, "application/json", requestBody)
 	if err != nil {
-		t.Errorf("Got unexpected error: %v", err)
+		return nil, response, err
 	}
 
 	DeleteApp(t, s.Context, s.Client, s.AppName)
 
-	return output, response
+	return output, response, nil
 }
 
 func TestFDKFormatSmallBody(t *testing.T) {
@@ -112,20 +108,21 @@ func TestFDKFormatSmallBody(t *testing.T) {
 		// echo function:
 		// payload:
 		//    {
-		//        "name": "John"
+		//        "name": "Jimmy"
 		//    }
 		// response:
-		//    "Hello John"
+		//    "Hello Jimmy"
 		t.Run(fmt.Sprintf("test-fdk-%v-small-body", format), func(t *testing.T) {
 
 			t.Parallel()
 			s := SetupDefaultSuite()
 			route := fmt.Sprintf("/test-fdk-%v-format-small-body", format)
 
-			responsePayload := &JSONResponse{}
-			output, response := callOnce(t, s, route, FDKImage, format, helloJohnPayload, responsePayload)
-
-			if !strings.Contains(helloJohnExpectedOutput, responsePayload.Message) {
+			output, response, err := callOnce(t, s, route, FDKImage, format, helloJohnPayload)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err.Error())
+			}
+			if !strings.Contains(output.String(), helloJohnExpectedOutput) {
 				t.Errorf("Output assertion error.\n\tExpected: %v\n\tActual: %v", helloJohnExpectedOutput, output.String())
 			}
 			if response.StatusCode != 200 {
@@ -142,7 +139,6 @@ func TestFDKFormatSmallBody(t *testing.T) {
 						"\n\tExpected: %v\n\tActual: %v", name, expected, actual)
 				}
 			}
-
 		})
 	}
 }
@@ -154,9 +150,10 @@ func TestFDKMultipleEvents(t *testing.T) {
 		t.Error("Please set FDK-based function image to test")
 	}
 	formats := []string{"http", "json"}
+	var wg sync.WaitGroup
 
 	for _, format := range formats {
-		// this test attempts to send 100 concurrent requests
+		// this test attempts to send 10 concurrent requests
 		// to a function in order to see if it's capable to handle more than 1 event
 		// the only thing that matters in this test is response code, it should be 200 OK for all requests,
 		// if one assertion fails means that FDK or Fn failed to dispatch necessary number of calls
@@ -166,7 +163,7 @@ func TestFDKMultipleEvents(t *testing.T) {
 			s := SetupDefaultSuite()
 			route := fmt.Sprintf("/test-fdk-%v-multiple-events", format)
 
-			callMultiple(10, t, s, route, FDKImage, format)
+			callMultiple(&wg, 100, t, s, route, FDKImage, format)
 		})
 	}
 }
