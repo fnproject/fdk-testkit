@@ -13,12 +13,6 @@ This testing framework allows to run FDK tests against live Fn service, to let t
     export FN_API_URL=http://fn.io:8080
 ```
 
-As an alternative test suite capable to bootstrap its own copy of Fn service locally, for this particular case following environment variables must be set:
-```bash
-    export DOCKER_HOST=/var/run/docker.sock
-```
-or wherever Docker Remote API daemon listens.
-
 Test suite requires general purpose programming language-specific FDK-based function image that must be developed specifically for this test suite, following environment variable must be set:
 ```bash
     export FDK_FUNCTION_IMAGE="..."
