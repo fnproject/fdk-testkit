@@ -31,6 +31,8 @@ func doRequest(t *testing.T, ctx context.Context, fnAppName, fnAppRoute string, 
 
 	response, err := CallFN(ctx, u.String(), contentType, content, output, "POST", []string{})
 
+	t.Logf("[app: %v] - [route: %v] - [call ID: %v]", fnAppName, fnAppRoute, response.Header.Get("Fn_call_id"))
+
 	if err != nil {
 		return nil, response, err
 	}
