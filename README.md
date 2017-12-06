@@ -48,13 +48,13 @@ FDK should support following formats:
 Request input body:
 ```json
 {
-  "name": "John"
+  "name": "Jimmy"
 }
 ```
 
 Response output body:
 ```text
-Hello John
+Hello Jimmy
 ```
 
 How to run tests?
@@ -66,6 +66,17 @@ From source code:
 ```bash
     go test -v ./...
 ```
+
+How to keep test apps and routes in place?
+------------------------------------------
+
+By default testkit runs cleanup for all app and routes created during particular execution.
+In order to keep them in place to let developers work with results test suite can be configured with following boolean environment variable:
+```bash
+    export DISABLE_TESTKIT_CLEANUP=true
+```
+`True` options: "1", "t", "T", "true", "TRUE", "True"
+`False` options: "0", "f", "F", "false", "FALSE", "False"
 
 How to build test binary executable?
 ------------------------------------

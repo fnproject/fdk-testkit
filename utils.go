@@ -22,6 +22,7 @@ import (
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	"net"
+	"strconv"
 	"testing"
 )
 
@@ -104,17 +105,18 @@ func SetupDefaultSuite() *SuiteSetup {
 }
 
 func Cleanup() {
-	ctx := context.Background()
-	c := APIClient()
-	approutesLock.Lock()
-	defer approutesLock.Unlock()
-	for appName, rs := range appsandroutes {
-		for _, routePath := range rs {
-			DeleteRouteNoAssert(ctx, c, appName, routePath)
+	keepApps := os.Getenv("DISABLE_TESTKIT_CLEANUP")
+	b, _ := strconv.ParseBool(keepApps)
+	if b != true {
+		ctx := context.Background()
+		c := APIClient()
+		approutesLock.Lock()
+		defer approutesLock.Unlock()
+		for appName := range appsandroutes {
+			DeleteAppNoT(ctx, c, appName)
 		}
-		DeleteAppNoT(ctx, c, appName)
+		appsandroutes = make(map[string][]string)
 	}
-	appsandroutes = make(map[string][]string)
 }
 
 func EnvAsHeader(req *http.Request, selectedEnv []string) {
