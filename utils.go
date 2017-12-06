@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"golang.org/x/net/context/ctxhttp"
 	"io"
 	"log"
 	"math/rand"
@@ -15,10 +16,12 @@ import (
 	"time"
 
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"github.com/fnproject/fn_go/client"
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"net"
 	"testing"
 )
 
@@ -127,7 +130,24 @@ func EnvAsHeader(req *http.Request, selectedEnv []string) {
 	}
 }
 
-func CallFN(u string, contentType string, content io.Reader, output io.Writer, method string, env []string) (*http.Response, error) {
+func SetupHTTPClient() *http.Client {
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 120 * time.Second,
+		}).Dial,
+		MaxIdleConnsPerHost: 512,
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig: &tls.Config{
+			ClientSessionCache: tls.NewLRUClientSessionCache(4096),
+		},
+	}
+	return &http.Client{Transport: transport}
+}
+
+func CallFN(ctx context.Context, u string, contentType string, content io.Reader, output io.Writer, method string, env []string) (*http.Response, error) {
+	httpclient := SetupHTTPClient()
 	if method == "" {
 		if content == nil {
 			method = "GET"
@@ -147,7 +167,7 @@ func CallFN(u string, contentType string, content io.Reader, output io.Writer, m
 		EnvAsHeader(req, env)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := ctxhttp.Do(ctx, httpclient, req)
 	if err != nil {
 		return nil, fmt.Errorf("error running route: %s", err)
 	}
@@ -174,9 +194,9 @@ func MyCaller() string {
 	return fmt.Sprintf("%s:%d", f, l)
 }
 
-func CallAsync(t *testing.T, u url.URL, contentType string, content io.Reader) string {
+func CallAsync(t *testing.T, ctx context.Context, u url.URL, contentType string, content io.Reader) string {
 	output := &bytes.Buffer{}
-	_, err := CallFN(u.String(), contentType, content, output, "POST", []string{})
+	_, err := CallFN(ctx, u.String(), contentType, content, output, "POST", []string{})
 	if err != nil {
 		t.Errorf("Got unexpected error: %v", err)
 	}

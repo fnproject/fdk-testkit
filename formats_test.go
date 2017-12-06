@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 )
 
-func doRequest(t *testing.T, fnAppName, fnAppRoute string, contentType string, requestBody interface{}) (*bytes.Buffer, *http.Response, error) {
+func doRequest(t *testing.T, ctx context.Context, fnAppName, fnAppRoute string, contentType string, requestBody interface{}) (*bytes.Buffer, *http.Response, error) {
 	u := url.URL{
 		Scheme: "http",
 		Host:   Host(),
@@ -28,7 +29,7 @@ func doRequest(t *testing.T, fnAppName, fnAppRoute string, contentType string, r
 	content := bytes.NewBuffer(b)
 	output := &bytes.Buffer{}
 
-	response, err := CallFN(u.String(), contentType, content, output, "POST", []string{})
+	response, err := CallFN(ctx, u.String(), contentType, content, output, "POST", []string{})
 
 	if err != nil {
 		return nil, response, err
@@ -46,9 +47,9 @@ func callMultiple(times int, t *testing.T, s *SuiteSetup, fnRoute, fnImage,
 	CreateRoute(t, s.Context, s.Client, s.AppName, fnRoute, fnImage, "sync",
 		fnFormat, timeout, idleTimeout, s.RouteConfig, s.RouteHeaders)
 
-	for i := 0; i < times; i++ {
-		requestBody := fmt.Sprintf(`{"name":"%v"}`, RandStringBytes(100))
-		output, response, err := doRequest(t, s.AppName, fnRoute, "text/plain", requestBody)
+	for i := 1; i <= times; i++ {
+		requestBody := fmt.Sprintf(`{"name":"%v"}`, RandStringBytes(i))
+		output, response, err := doRequest(t, s.Context, s.AppName, fnRoute, "text/plain", requestBody)
 		if err != nil {
 			t.Errorf("Got unexpected error: %v", err)
 		}
@@ -77,7 +78,7 @@ func callOnce(t *testing.T, s *SuiteSetup, fnRoute, fnImage,
 	CreateRoute(t, s.Context, s.Client, s.AppName, fnRoute, fnImage, "sync",
 		fnFormat, timeout, idleTimeout, s.RouteConfig, s.RouteHeaders)
 
-	output, response, err := doRequest(t, s.AppName, fnRoute, "application/json", requestBody)
+	output, response, err := doRequest(t, s.Context, s.AppName, fnRoute, "application/json", requestBody)
 	if err != nil {
 		return nil, response, err
 	}
@@ -186,17 +187,16 @@ func TestFDKMultipleEvents(t *testing.T) {
 	}
 	formats := filterTestedFormats([]string{"http", "json"})
 	for _, format := range formats {
-		// this test attempts to send 10 concurrent requests
+		// this test attempts to send 50 concurrent requests
 		// to a function in order to see if it's capable to handle more than 1 event
 		// the only thing that matters in this test is response code, it should be 200 OK for all requests,
 		// if one assertion fails means that FDK or Fn failed to dispatch necessary number of calls
 		t.Run(fmt.Sprintf("test-fdk-%v-multiple-events", format), func(t *testing.T) {
 
-			t.Parallel()
 			s := SetupDefaultSuite()
 			route := fmt.Sprintf("/test-fdk-%v-multiple-events", format)
 
-			callMultiple(100, t, s, route, FDKImage, format)
+			callMultiple(50, t, s, route, FDKImage, format)
 		})
 	}
 }
