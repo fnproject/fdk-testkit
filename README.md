@@ -19,7 +19,17 @@ Test suite requires general purpose programming language-specific FDK-based func
 ```
 This environment variable should contain a reference to the particular docker image.
 
+At this moment Fn server supports 3 formats:
 
+ - default
+ - http
+ - json
+
+To let developers freedom of choice test suite allows to configure list of formats to test against FDK.
+By default tests will use two hot formats: `json` and `http`, it's possible to override those formats using following environment format:
+```bash
+    export FDK_FORMATS=json,http
+```
 Test suite details
 ------------------
 

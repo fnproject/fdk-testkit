@@ -87,13 +87,33 @@ func callOnce(t *testing.T, s *SuiteSetup, fnRoute, fnImage,
 	return output, response, nil
 }
 
+func filterTestedFormats(formats []string) []string {
+	supportedFormats := os.Getenv("FDK_FORMATS")
+
+	if supportedFormats != "" {
+		acceptedFormats := strings.Split(supportedFormats, ",")
+		validFormats := []string{}
+
+		for _, af := range acceptedFormats {
+			for _, reqF := range formats {
+				if reqF == af {
+					validFormats = append(validFormats, reqF)
+				}
+			}
+		}
+		return validFormats
+
+	}
+	return formats
+}
+
 func TestFDKFormatSmallBody(t *testing.T) {
 
 	FDKImage := os.Getenv("FDK_FUNCTION_IMAGE")
 	if FDKImage == "" {
 		t.Error("Please set FDK-based function image to test")
 	}
-	formats := []string{"http", "json"}
+	formats := filterTestedFormats([]string{"http", "json"})
 
 	helloJohnPayload := &struct {
 		Name string `json:"name"`
@@ -164,7 +184,7 @@ func TestFDKMultipleEvents(t *testing.T) {
 	if FDKImage == "" {
 		t.Error("Please set FDK-based function image to test")
 	}
-	formats := []string{"http", "json"}
+	formats := filterTestedFormats([]string{"http", "json"})
 	for _, format := range formats {
 		// this test attempts to send 10 concurrent requests
 		// to a function in order to see if it's capable to handle more than 1 event
