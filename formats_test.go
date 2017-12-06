@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
 )
 
 func doRequest(t *testing.T, fnAppName, fnAppRoute string, contentType string, requestBody interface{}) (*bytes.Buffer, *http.Response, error) {
@@ -38,7 +37,7 @@ func doRequest(t *testing.T, fnAppName, fnAppRoute string, contentType string, r
 	return output, response, nil
 }
 
-func callMultiple(wg *sync.WaitGroup, times int, t *testing.T, s *SuiteSetup, fnRoute, fnImage,
+func callMultiple(times int, t *testing.T, s *SuiteSetup, fnRoute, fnImage,
 	fnFormat string) {
 
 	timeout := int32(30)
@@ -47,31 +46,24 @@ func callMultiple(wg *sync.WaitGroup, times int, t *testing.T, s *SuiteSetup, fn
 	CreateRoute(t, s.Context, s.Client, s.AppName, fnRoute, fnImage, "sync",
 		fnFormat, timeout, idleTimeout, s.RouteConfig, s.RouteHeaders)
 
-	wg.Add(times)
-
 	for i := 0; i < times; i++ {
-		go func() {
-			defer wg.Done()
-
-			requestBody := fmt.Sprintf(`{"name":"%v"}`, RandStringBytes(100))
-			output, response, err := doRequest(t, s.AppName, fnRoute, "text/plain", requestBody)
-			if err != nil {
-				t.Errorf("Got unexpected error: %v", err)
+		requestBody := fmt.Sprintf(`{"name":"%v"}`, RandStringBytes(100))
+		output, response, err := doRequest(t, s.AppName, fnRoute, "text/plain", requestBody)
+		if err != nil {
+			t.Errorf("Got unexpected error: %v", err)
+		}
+		if response.StatusCode != http.StatusOK {
+			if response.StatusCode == http.StatusNotImplemented {
+				// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
+				t.Logf("It seems like given FDK does not support '%v' format. "+
+					"That's not a reason to fail, continue testing...", fnFormat)
+			} else {
+				t.Log(output.String())
+				t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
+					200, response.StatusCode)
 			}
-			if response.StatusCode != http.StatusOK {
-				if response.StatusCode == http.StatusNotImplemented {
-					// FDK should respond with HTTP 501 Not Implemented if specified protocol not implemented in FDK
-					t.Logf("It seems like given FDK does not support '%v' format. "+
-						"That's not a reason to fail, continue testing...", fnFormat)
-				} else {
-					t.Log(output.String())
-					t.Errorf("Status code assertion error.\n\tExpected: %v\n\tActual: %v",
-						200, response.StatusCode)
-				}
-			}
-		}()
+		}
 	}
-	wg.Wait()
 
 	DeleteApp(t, s.Context, s.Client, s.AppName)
 }
@@ -173,8 +165,6 @@ func TestFDKMultipleEvents(t *testing.T) {
 		t.Error("Please set FDK-based function image to test")
 	}
 	formats := []string{"http", "json"}
-	var wg sync.WaitGroup
-
 	for _, format := range formats {
 		// this test attempts to send 10 concurrent requests
 		// to a function in order to see if it's capable to handle more than 1 event
@@ -186,7 +176,7 @@ func TestFDKMultipleEvents(t *testing.T) {
 			s := SetupDefaultSuite()
 			route := fmt.Sprintf("/test-fdk-%v-multiple-events", format)
 
-			callMultiple(&wg, 100, t, s, route, FDKImage, format)
+			callMultiple(100, t, s, route, FDKImage, format)
 		})
 	}
 }
