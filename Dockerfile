@@ -1,12 +1,12 @@
 # build stage
 FROM golang:alpine AS build-env
 RUN apk --no-cache add build-base git bzr mercurial gcc
-RUN go get -u github.com/golang/dep/cmd/dep
 ENV D=/go/src/github.com/fnproject/fdk-testkit
+RUN go get -u github.com/golang/dep/cmd/dep
+ADD Gopkg.* $D/
+RUN cd $D && dep ensure --vendor-only
 ADD . $D
-WORKDIR $D
-RUN $GOPATH/bin/dep ensure
-RUN go test -c -i  &&  cp fdk-testkit.test /tmp/
+RUN cd $D && go test -c -i  &&  cp fdk-testkit.test /tmp/
 
 # final stage
 FROM fnproject/dind
